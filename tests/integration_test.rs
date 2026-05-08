@@ -36,6 +36,26 @@ fn run_with_args(in_path: impl AsRef<Path>, args: &[&str]) -> String {
     stdout
 }
 
+/// Runs `list-public-items-detail`; expects exit code 0 and returns stdout (JSON).
+fn run_list_public_items_detail(in_path: impl AsRef<Path>, args: &[&str]) -> String {
+    let mut cmd = get_test_bin("cargo-check-external-types-detail");
+    cmd.current_dir(in_path.as_ref());
+    cmd.arg("list-public-items-detail");
+    for &arg in args {
+        cmd.arg(arg);
+    }
+    let output = cmd
+        .output()
+        .expect("failed to start cargo-check-external-types-detail");
+    assert_eq!(
+        Some(0),
+        output.status.code(),
+        "list-public-items-detail should exit 0; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
 #[test]
 fn with_default_config() {
     let expected_output = fs::read_to_string("tests/default-config-expected-output.md").unwrap();
@@ -123,7 +143,52 @@ fn with_output_format_json() {
 }
 
 #[test]
-fn test_unused_allowed_external_types() {
+fn list_public_items_detail_emits_valid_catalog_json() {
+    let raw = run_list_public_items_detail("test-workspace/test-crate", &[]);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&raw).expect("list-public-items-detail must produce valid JSON");
+    let summary = parsed.get("summary").expect("summary present");
+    let items_count = summary
+        .get("items_count")
+        .and_then(|v| v.as_u64())
+        .expect("items_count") as usize;
+    let items = parsed
+        .get("items")
+        .and_then(|v| v.as_array())
+        .expect("items array present");
+    assert_eq!(items_count, items.len());
+    assert!(
+        items_count > 5,
+        "expected a non-trivial public API surface in the fixture crate"
+    );
+    for item in items {
+        let ext = item
+            .get("external_usage")
+            .expect("each item has external_usage");
+        assert!(ext.get("uses_external").and_then(|b| b.as_bool()).is_some());
+        assert!(ext
+            .get("uses_unapproved_external")
+            .and_then(|b| b.as_bool())
+            .is_some());
+        assert!(ext
+            .get("direct_externals")
+            .and_then(|v| v.as_array())
+            .is_some());
+        assert!(ext
+            .get("transitive_externals")
+            .and_then(|v| v.as_array())
+            .is_some());
+    }
+    assert!(
+        items
+            .iter()
+            .any(|it| it.get("kind").and_then(|k| k.as_str()) == Some("struct")),
+        "expected at least one cataloged struct"
+    );
+}
+
+#[test]
+fn test_unused_allowed_external_types_detail() {
     let expected_output = fs::read_to_string("tests/allow-types-unused.md").unwrap();
     let actual_output = run_with_args(
         "test-workspace/test-crate",
@@ -133,7 +198,7 @@ fn test_unused_allowed_external_types() {
 }
 
 #[test]
-fn test_multiple_allowed_external_types() {
+fn test_multiple_allowed_external_types_detail() {
     let expected_output = fs::read_to_string("tests/allow-types-multiple-times.md").unwrap();
     let actual_output = run_with_args(
         "test-workspace/test-crate",

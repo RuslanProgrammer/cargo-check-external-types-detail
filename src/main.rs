@@ -4,6 +4,7 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
+use cargo_check_external_types_detail::catalog::ItemCatalog;
 use cargo_check_external_types_detail::cargo::CargoRustDocJson;
 use cargo_check_external_types_detail::config::Config;
 use cargo_check_external_types_detail::error::{ErrorPrinter, ValidationErrors};
@@ -11,6 +12,7 @@ use cargo_check_external_types_detail::here;
 use cargo_check_external_types_detail::visitor::Visitor;
 use cargo_metadata::{CargoOpt, Metadata, Package, TargetKind};
 use clap::{Parser, ValueEnum};
+use rustdoc_types::Crate;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -38,8 +40,9 @@ impl fmt::Display for OutputFormat {
     }
 }
 
+/// Shared Cargo / rustdoc options for subcommands that analyze the crate API.
 #[derive(clap::Args, Debug, Eq, PartialEq)]
-struct CheckExternalTypesDetailArgs {
+struct CargoRustdocArgs {
     /// Enables all crate features
     #[arg(long, conflicts_with = "no_default_features")]
     all_features: bool,
@@ -62,15 +65,28 @@ struct CheckExternalTypesDetailArgs {
     /// Enable verbose output for debugging
     #[arg(short, long)]
     verbose: bool,
+}
+
+#[derive(clap::Args, Debug, Eq, PartialEq)]
+struct CheckExternalTypesDetailArgs {
+    #[command(flatten)]
+    cargo: CargoRustdocArgs,
     /// Format to output results in
     #[arg(long, default_value_t = OutputFormat::Errors)]
     output_format: OutputFormat,
+}
+
+#[derive(clap::Args, Debug, Eq, PartialEq)]
+struct ListPublicItemsDetailArgs {
+    #[command(flatten)]
+    cargo: CargoRustdocArgs,
 }
 
 #[derive(Parser, Debug, Eq, PartialEq)]
 #[command(author, version, about, bin_name = "cargo")]
 enum Args {
     CheckExternalTypesDetail(CheckExternalTypesDetailArgs),
+    ListPublicItemsDetail(ListPublicItemsDetailArgs),
 }
 
 enum Error {
@@ -95,36 +111,40 @@ fn main() {
     })
 }
 
-fn run_main() -> Result<(), Error> {
-    let Args::CheckExternalTypesDetail(args) = Args::parse();
-    if args.verbose {
-        let filter_layer = EnvFilter::try_from_default_env()
-            .or_else(|_| EnvFilter::try_new("debug"))
-            .unwrap();
-        let fmt_layer = tracing_subscriber::fmt::layer()
-            .without_time()
-            .with_ansi(true)
-            .with_level(true)
-            .with_target(false)
-            .pretty();
-        tracing_subscriber::registry()
-            .with(filter_layer)
-            .with(fmt_layer)
-            .init();
+fn init_tracing_if_verbose(verbose: bool) {
+    if !verbose {
+        return;
     }
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("debug"))
+        .unwrap();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .without_time()
+        .with_ansi(true)
+        .with_level(true)
+        .with_target(false)
+        .pretty();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+}
+
+fn run_rustdoc_package(cargo: &CargoRustdocArgs) -> Result<(Metadata, Config, Crate)> {
+    init_tracing_if_verbose(cargo.verbose);
 
     let mut cargo_metadata_cmd = cargo_metadata::MetadataCommand::new();
-    if args.all_features {
+    if cargo.all_features {
         cargo_metadata_cmd.features(CargoOpt::AllFeatures);
     }
-    if args.no_default_features {
+    if cargo.no_default_features {
         cargo_metadata_cmd.features(CargoOpt::NoDefaultFeatures);
     }
-    if let Some(features) = &args.features {
+    if let Some(features) = &cargo.features {
         cargo_metadata_cmd.features(CargoOpt::SomeFeatures(features.clone()));
     }
-    let crate_path = if let Some(manifest_path) = args.manifest_path {
-        cargo_metadata_cmd.manifest_path(&manifest_path);
+    let crate_path = if let Some(manifest_path) = &cargo.manifest_path {
+        cargo_metadata_cmd.manifest_path(manifest_path);
         manifest_path
             .canonicalize()
             .context(here!())?
@@ -139,7 +159,7 @@ fn run_main() -> Result<(), Error> {
     };
     let cargo_metadata = cargo_metadata_cmd.exec().context(here!())?;
 
-    let config = if let Some(config_path) = &args.config {
+    let config = if let Some(config_path) = &cargo.config {
         let contents = fs::read_to_string(config_path).context("failed to read config file")?;
         toml::from_str(&contents).context("failed to parse config file")?
     } else {
@@ -147,7 +167,7 @@ fn run_main() -> Result<(), Error> {
             .context("failed to parse config from Cargo.toml metadata")?
     };
 
-    let cargo_features = if let Some(features) = args.features {
+    let cargo_features = if let Some(features) = cargo.features.clone() {
         features
     } else {
         resolve_features(&cargo_metadata)?
@@ -160,10 +180,16 @@ fn run_main() -> Result<(), Error> {
         crate_path,
         &cargo_metadata.target_directory,
         cargo_features,
-        args.target.clone(),
+        cargo.target.clone(),
     )
     .run()
     .context(here!())?;
+
+    Ok((cargo_metadata, config, package))
+}
+
+fn run_check(args: CheckExternalTypesDetailArgs) -> Result<(), Error> {
+    let (cargo_metadata, config, package) = run_rustdoc_package(&args.cargo)?;
 
     eprintln!("Examining all public types...");
     let errors = Visitor::new(config, package)?.visit_all()?;
@@ -184,6 +210,33 @@ fn run_main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn run_list_public_items_detail(args: ListPublicItemsDetailArgs) -> Result<(), Error> {
+    let (_cargo_metadata, config, package) = run_rustdoc_package(&args.cargo)?;
+
+    eprintln!("Cataloging public items and external usage...");
+    let (_errors, catalog) = Visitor::new_with_catalog(config, package)?
+        .visit_all_with_catalog()
+        .map_err(Error::from)?;
+    print_catalog_json(&catalog).map_err(Error::from)?;
+
+    Ok(())
+}
+
+fn print_catalog_json(catalog: &ItemCatalog) -> Result<()> {
+    let value = catalog.to_json_value();
+    let rendered =
+        serde_json::to_string_pretty(&value).context("failed to serialize catalog as JSON")?;
+    println!("{rendered}");
+    Ok(())
+}
+
+fn run_main() -> Result<(), Error> {
+    match Args::parse() {
+        Args::CheckExternalTypesDetail(args) => run_check(args),
+        Args::ListPublicItemsDetail(args) => run_list_public_items_detail(args),
+    }
 }
 
 fn print_markdown_table(errors: &ValidationErrors) {
@@ -281,17 +334,23 @@ mod arg_parse_tests {
     use super::*;
     use clap::Parser;
 
+    fn default_cargo_args() -> CargoRustdocArgs {
+        CargoRustdocArgs {
+            all_features: false,
+            no_default_features: false,
+            features: None,
+            manifest_path: None,
+            target: None,
+            config: None,
+            verbose: false,
+        }
+    }
+
     #[test]
     fn defaults() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: default_cargo_args(),
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from(["cargo", "check-external-types-detail"]).unwrap()
@@ -299,16 +358,23 @@ mod arg_parse_tests {
     }
 
     #[test]
+    fn list_public_items_detail_defaults() {
+        assert_eq!(
+            Args::ListPublicItemsDetail(ListPublicItemsDetailArgs {
+                cargo: default_cargo_args(),
+            }),
+            Args::try_parse_from(["cargo", "list-public-items-detail"]).unwrap()
+        );
+    }
+
+    #[test]
     fn all_features() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: true,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: CargoRustdocArgs {
+                    all_features: true,
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from(["cargo", "check-external-types-detail", "--all-features"])
@@ -320,13 +386,10 @@ mod arg_parse_tests {
     fn no_default_features() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: true,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: CargoRustdocArgs {
+                    no_default_features: true,
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from([
@@ -342,13 +405,10 @@ mod arg_parse_tests {
     fn feature_list() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: Some(vec!["foo".into(), "bar".into()]),
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: CargoRustdocArgs {
+                    features: Some(vec!["foo".into(), "bar".into()]),
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from([
@@ -365,13 +425,10 @@ mod arg_parse_tests {
     fn manifest_path() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: Some("test-path".into()),
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: CargoRustdocArgs {
+                    manifest_path: Some("test-path".into()),
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from([
@@ -388,13 +445,10 @@ mod arg_parse_tests {
     fn target() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: Some("x86_64-unknown-linux-gnu".into()),
-                config: None,
-                verbose: false,
+                cargo: CargoRustdocArgs {
+                    target: Some("x86_64-unknown-linux-gnu".into()),
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from([
@@ -411,13 +465,10 @@ mod arg_parse_tests {
     fn verbose() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: true,
+                cargo: CargoRustdocArgs {
+                    verbose: true,
+                    ..default_cargo_args()
+                },
                 output_format: OutputFormat::Errors,
             }),
             Args::try_parse_from(["cargo", "check-external-types-detail", "--verbose"]).unwrap()
@@ -428,13 +479,7 @@ mod arg_parse_tests {
     fn output_format_markdown_table() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: default_cargo_args(),
                 output_format: OutputFormat::MarkdownTable,
             }),
             Args::try_parse_from([
@@ -451,13 +496,7 @@ mod arg_parse_tests {
     fn output_format_json() {
         assert_eq!(
             Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
-                all_features: false,
-                no_default_features: false,
-                features: None,
-                manifest_path: None,
-                target: None,
-                config: None,
-                verbose: false,
+                cargo: default_cargo_args(),
                 output_format: OutputFormat::Json,
             }),
             Args::try_parse_from([

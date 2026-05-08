@@ -94,6 +94,50 @@ impl Path {
         self.stack.last().map(|c| c.typ)
     }
 
+    /// Parent path string (all path segments except the last non-empty name).
+    pub fn parent_path_string(&self) -> Option<String> {
+        let names: Vec<&str> = self
+            .stack
+            .iter()
+            .filter(|c| !c.name.is_empty())
+            .map(|c| c.name.as_str())
+            .collect();
+        if names.len() <= 1 {
+            return None;
+        }
+        Some(names[..names.len() - 1].join("::"))
+    }
+
+    /// Nearest owning item for catalog attribution: walks the path stack from
+    /// the end and returns the first component with a rustdoc [`Id`] whose
+    /// type is a module, type, function, or enum variant.
+    pub fn enclosing_catalog_owner_with_id(&self) -> Option<(String, Id, ComponentType)> {
+        for i in (0..self.stack.len()).rev() {
+            let c = &self.stack[i];
+            let id = c.id?;
+            let typ = match c.typ {
+                ComponentType::Struct
+                | ComponentType::Enum
+                | ComponentType::Union
+                | ComponentType::Trait
+                | ComponentType::TypeAlias
+                | ComponentType::Function
+                | ComponentType::Static
+                | ComponentType::Constant
+                | ComponentType::Module
+                | ComponentType::EnumVariant => c.typ,
+                _ => continue,
+            };
+            let names: Vec<&str> = self.stack[..=i]
+                .iter()
+                .filter(|c| !c.name.is_empty())
+                .map(|c| c.name.as_str())
+                .collect();
+            return Some((names.join("::"), id, typ));
+        }
+        None
+    }
+
     /// If the path ends with `Struct(name) -> StructField(...)`, returns the
     /// full type path string up to and including the `Struct` component
     /// together with the rustdoc [`Id`] of that struct.

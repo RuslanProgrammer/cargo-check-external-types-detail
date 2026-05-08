@@ -5,7 +5,8 @@ to set and verify which types from other libraries are allowed to be exposed in
 their public API. This is useful for ensuring that a breaking change to a
 dependency doesn't force a breaking change in the library that's using it.
 
-The tool has two output formats to cover different use-cases:
+The primary subcommand is **`check-external-types-detail`**. It has three output
+formats to cover different use-cases:
 
 - `errors` (the default): Output error messages for each type that is exposed in
   the public API and exit with status 1 if there is at least one error. This is
@@ -13,6 +14,16 @@ The tool has two output formats to cover different use-cases:
 - `markdown-table`: Output the places types are exposed as a Markdown table.
   This is intended as a discovery tool for established projects.
 - `json`: Output the results as a JSON object. This is intended as a programmatic output format.
+
+A second subcommand, **`list-public-items-detail`**, prints pretty JSON that lists
+public items the tool walks (modules, types, functions, fields, re-exports, and
+similar), each with an **`external_usage`** object: **`direct_externals`** and
+**`transitive_externals`** (including struct chains where applicable), plus
+**`uses_external`**, **`uses_unapproved_external`**, and per-usage flags such as
+**`is_approved`** and **`is_std`**. It uses the same rustdoc invocation and
+**`--config`** / `Cargo.toml` metadata as the check command. On success it exits
+with status 0 (it does not fail the process when the check would report
+validation errors; use **`check-external-types-detail`** for CI gates).
 
 The tool has an optional configuration file where types can by explicitly
 allowed.
@@ -61,14 +72,14 @@ your crate's `Cargo.toml` to allow certain types. For example, we can allow any
 type in `bytes` by adding this metadata to your crate's `Cargo.toml`:
 
 ```toml
-[package.metadata.cargo_check_external_types]
-allowed_external_types = ["bytes::*"]
+[package.metadata.cargo_check_external_types_detail]
+allowed_external_types_detail = ["bytes::*"]
 ```
 
 Or, if you'd prefer, you can create a separate configuration file with the content:
 
 ```toml
-allowed_external_types = [
+allowed_external_types_detail = [
     "bytes::*",
 ]
 ```
@@ -82,6 +93,22 @@ cargo +nightly check-external-types-detail --config external-types.toml
 
 If both a `Cargo.toml` package metadata section and a `--config` flag are
 provided, the `--config` flag will be used instead of the package metadata.
+
+### `list-public-items-detail`
+
+To print a JSON catalog of public items and their external-type usage to stdout:
+
+```bash
+cargo +nightly list-public-items-detail
+```
+
+The same rustdoc-related flags as `check-external-types-detail` apply (`--config`,
+`--manifest-path`, `--all-features`, `--no-default-features`, `--features`,
+`--target`, `--verbose`). The JSON includes a `summary` and an `items` array; each
+item documents `external_usage` (direct and transitive externals, approval flags,
+and struct chains where the tool reports them). After a successful rustdoc run,
+this subcommand exits with status 0 even when the check subcommand would exit
+with status 1 due to validation errors.
 
 ### Caveats
 

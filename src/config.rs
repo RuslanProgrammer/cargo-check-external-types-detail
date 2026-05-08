@@ -42,19 +42,19 @@ pub struct Config {
     ///
     /// For example, to allow every type in a crate:
     /// ```toml
-    /// allowed_external_types = [
+    /// allowed_external_types_detail = [
     ///     "crate_name::*"
     /// ]
     /// ```
     ///
     /// Or, to selectively allow just a module of that crate
     /// ```toml
-    /// allowed_external_types = [
+    /// allowed_external_types_detail = [
     ///     "crate_name::path::to_module::*"
     /// ]
     /// ```
     #[serde(deserialize_with = "deserialize_vec_wild_match")]
-    pub allowed_external_types: Vec<WildMatch>,
+    pub allowed_external_types_detail: Vec<WildMatch>,
 }
 
 impl Config {
@@ -89,7 +89,7 @@ impl Config {
         }
 
         let matches: Vec<_> = self
-            .allowed_external_types
+            .allowed_external_types_detail
             .iter()
             .filter(|glob| glob.matches(type_name))
             .collect();
@@ -108,7 +108,7 @@ impl Default for Config {
             allow_alloc: default_allow_std(),
             allow_core: default_allow_std(),
             allow_std: default_allow_std(),
-            allowed_external_types: Default::default(),
+            allowed_external_types_detail: Default::default(),
         }
     }
 }
@@ -154,7 +154,7 @@ mod tests {
     fn deserialize_config() {
         let config = r#"
             allow_std = false
-            allowed_external_types = [
+            allowed_external_types_detail = [
                 "test::*",
                 "another_test::something::*::something",
             ]
@@ -163,16 +163,19 @@ mod tests {
         assert!(config.allow_alloc);
         assert!(config.allow_core);
         assert!(!config.allow_std);
-        assert!(config.allowed_external_types[0].matches("test::something"));
-        assert!(!config.allowed_external_types[0].matches("other::something"));
-        assert!(config.allowed_external_types[1].matches("another_test::something::foo::something"));
-        assert!(!config.allowed_external_types[1].matches("another_test::other::foo::something"));
+        assert!(config.allowed_external_types_detail[0].matches("test::something"));
+        assert!(!config.allowed_external_types_detail[0].matches("other::something"));
+        assert!(config.allowed_external_types_detail[1]
+            .matches("another_test::something::foo::something"));
+        assert!(
+            !config.allowed_external_types_detail[1].matches("another_test::other::foo::something")
+        );
     }
 
     #[test]
     fn deserialize_config_multiple_allow() {
         let config = r#"
-            allowed_external_types = [
+            allowed_external_types_detail = [
                 "test::*",
                 "test::*",
 
@@ -200,7 +203,7 @@ mod tests {
     #[test]
     fn test_allows_type() {
         let config = Config {
-            allowed_external_types: vec![WildMatch::new("one::*"), WildMatch::new("two::*")],
+            allowed_external_types_detail: vec![WildMatch::new("one::*"), WildMatch::new("two::*")],
             ..Default::default()
         };
         assert_eq!(

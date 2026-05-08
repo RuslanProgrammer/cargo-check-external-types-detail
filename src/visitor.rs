@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+use crate::catalog::{
+    is_approved_for_type_name, record_catalog_external_from_allow_result, ItemCatalog,
+    TransitiveExternalUsage,
+};
 use crate::config::{AllowedTypeError, AllowedTypeMatch, Config};
 use crate::error::{ErrorLocation, ValidationError, ValidationErrors};
 use crate::path::{ComponentType, Path};
@@ -56,6 +60,7 @@ struct LocalStructRef {
 }
 
 struct TransitiveEmission {
+    entry_struct_id: Id,
     chain: Vec<String>,
     external_type: String,
     what: ErrorLocation,
@@ -143,6 +148,7 @@ impl ExposureGraph {
                         }
                     }
                     emissions.push(TransitiveEmission {
+                        entry_struct_id: *entry_id,
                         chain,
                         external_type: ext_type,
                         what: r.original_what.clone(),
@@ -207,13 +213,17 @@ pub struct Visitor {
     /// Graph used for transitive "Local struct exposes" analysis. Populated
     /// while visiting struct fields and consumed at the end of `visit_all`.
     exposure_graph: RefCell<ExposureGraph>,
+
+    /// Optional catalog of public items and external-type usage (for
+    /// `list-public-items-detail`).
+    catalog: RefCell<ItemCatalog>,
 }
 
 impl Visitor {
     pub fn new(config: Config, package: Crate) -> Result<Self> {
         let unused_approve = RefCell::new(
             config
-                .allowed_external_types
+                .allowed_external_types_detail
                 .iter()
                 .map(|glob| glob.to_string())
                 .collect(),
@@ -227,12 +237,32 @@ impl Visitor {
             errors: RefCell::new(ValidationErrors::new()),
             unused_approve,
             exposure_graph: RefCell::new(ExposureGraph::default()),
+            catalog: RefCell::new(ItemCatalog::disabled()),
         })
     }
 
-    /// This is the entry point for visiting the entire Rustdoc JSON tree, starting
-    /// from the root module (the only module where `is_crate` is true).
-    pub fn visit_all(self) -> Result<ValidationErrors> {
+    pub fn new_with_catalog(config: Config, package: Crate) -> Result<Self> {
+        let unused_approve = RefCell::new(
+            config
+                .allowed_external_types_detail
+                .iter()
+                .map(|glob| glob.to_string())
+                .collect(),
+        );
+        Ok(Visitor {
+            config,
+            root_crate_id: Self::root_crate_id(&package)?,
+            root_crate_name: Self::root_crate_name(&package)?,
+            index: package.index,
+            paths: package.paths,
+            errors: RefCell::new(ValidationErrors::new()),
+            unused_approve,
+            exposure_graph: RefCell::new(ExposureGraph::default()),
+            catalog: RefCell::new(ItemCatalog::enabled()),
+        })
+    }
+
+    fn visit_crate(&self) -> Result<()> {
         let root_path = Path::new(&self.root_crate_name);
         let root_module = self
             .index
@@ -252,10 +282,6 @@ impl Visitor {
             self.visit_item(&root_path, item, VisibilityCheck::Default)?;
         }
 
-        // Now that the per-struct exposure graph is fully populated, walk it
-        // to surface transitive cases: when struct A references struct B in
-        // one of its fields and B itself exposes external types, A also
-        // exposes those types from a public-API standpoint.
         self.emit_transitive_local_struct_exposures();
 
         self.unused_approve
@@ -263,7 +289,20 @@ impl Visitor {
             .into_iter()
             .for_each(|pattern| self.add_error(ValidationError::unused_approval_pattern(pattern)));
 
-        Ok(self.errors.take())
+        Ok(())
+    }
+
+    /// Entry point: validate external types and return diagnostics.
+    pub fn visit_all(self) -> Result<ValidationErrors> {
+        self.visit_crate()?;
+        Ok(self.errors.into_inner())
+    }
+
+    /// Like [`Self::visit_all`], but also returns a public-item catalog with
+    /// external usage metadata.
+    pub fn visit_all_with_catalog(self) -> Result<(ValidationErrors, ItemCatalog)> {
+        self.visit_crate()?;
+        Ok((self.errors.into_inner(), self.catalog.into_inner()))
     }
 
     /// Walks the [`ExposureGraph`] and emits a `LocalStructExposesExternalType`
@@ -279,13 +318,37 @@ impl Visitor {
         let emissions = self.exposure_graph.borrow().collect_transitive_emissions();
         for e in emissions {
             self.add_error(ValidationError::local_struct_exposes_external_type(
-                e.chain,
-                e.external_type,
+                e.chain.clone(),
+                e.external_type.clone(),
                 &e.what,
-                e.in_what_type,
+                e.in_what_type.clone(),
                 e.span.as_ref(),
             ));
+            if self.catalog.borrow().is_enabled() {
+                let approved = is_approved_for_type_name(
+                    &self.config,
+                    &self.root_crate_name,
+                    &e.external_type,
+                );
+                let ext_crate = e.external_type.split("::").next().map(|s| s.to_string());
+                self.catalog.borrow_mut().record_transitive_external(
+                    &e.entry_struct_id,
+                    TransitiveExternalUsage {
+                        type_name: e.external_type,
+                        external_crate: ext_crate,
+                        is_approved: approved,
+                        chain: e.chain,
+                        what: e.what.to_string(),
+                        in_what_type: e.in_what_type,
+                        location: e.span,
+                    },
+                );
+            }
         }
+    }
+
+    fn record_catalog_item(&self, path: &Path, item: &Item, kind: &'static str) {
+        self.catalog.borrow_mut().record_item(item, kind, path);
     }
 
     /// Returns true if the given item is public. In some cases, this must be determined
@@ -326,6 +389,7 @@ impl Visitor {
         match &item.inner {
             ItemEnum::AssocConst { type_, .. } => {
                 path.push(ComponentType::AssocConst, item);
+                self.record_catalog_item(&path, item, "assoc_const");
                 self.visit_type(&path, &ErrorLocation::StructField, type_)
                     .context(here!())?;
             }
@@ -335,6 +399,7 @@ impl Visitor {
                 generics,
             } => {
                 path.push(ComponentType::AssocType, item);
+                self.record_catalog_item(&path, item, "assoc_type");
                 if let Some(typ) = type_ {
                     self.visit_type(&path, &ErrorLocation::AssocType, typ)
                         .context(here!())?;
@@ -344,11 +409,13 @@ impl Visitor {
             }
             ItemEnum::Constant { type_, .. } => {
                 path.push(ComponentType::Constant, item);
+                self.record_catalog_item(&path, item, "constant");
                 self.visit_type(&path, &ErrorLocation::Constant, type_)
                     .context(here!())?;
             }
             ItemEnum::Enum(enm) => {
                 path.push(ComponentType::Enum, item);
+                self.record_catalog_item(&path, item, "enum");
                 self.visit_generics(&path, &enm.generics).context(here!())?;
                 self.visit_impls(&path, &enm.impls).context(here!())?;
                 for id in &enm.variants {
@@ -366,12 +433,14 @@ impl Visitor {
             ),
             ItemEnum::Function(function) => {
                 path.push(ComponentType::Function, item);
+                self.record_catalog_item(&path, item, "function");
                 self.visit_fn_sig(&path, &function.sig).context(here!())?;
                 self.visit_generics(&path, &function.generics)
                     .context(here!())?;
             }
             ItemEnum::Use(use_) => {
                 path.push_raw(ComponentType::ReExport, &use_.name, item.span.as_ref());
+                self.record_catalog_item(&path, item, "re_export");
                 // look at the type the `use` statement is referencing
                 if let Some(target_id) = &use_.id {
                     // if the item is in the index, check to see if it's in the
@@ -413,6 +482,7 @@ impl Visitor {
             ItemEnum::Module(module) => {
                 if !module.is_crate {
                     path.push(ComponentType::Module, item);
+                    self.record_catalog_item(&path, item, "module");
                 }
                 for id in &module.items {
                     let module_item = self.item(id).context(here!())?;
@@ -430,24 +500,29 @@ impl Visitor {
             // ItemEnum::OpaqueTy(_) => unstable_rust_feature!("type_alias_impl_trait", "https://doc.rust-lang.org/beta/unstable-book/language-features/type-alias-impl-trait.html"),
             ItemEnum::Static(sttc) => {
                 path.push(ComponentType::Static, item);
+                self.record_catalog_item(&path, item, "static");
                 self.visit_type(&path, &ErrorLocation::Static, &sttc.type_)
                     .context(here!())?;
             }
             ItemEnum::Struct(strct) => {
                 path.push(ComponentType::Struct, item);
+                self.record_catalog_item(&path, item, "struct");
                 self.visit_struct(&path, strct).context(here!())?;
             }
             ItemEnum::StructField(typ) => {
                 path.push(ComponentType::StructField, item);
+                self.record_catalog_item(&path, item, "struct_field");
                 self.visit_type(&path, &ErrorLocation::StructField, typ)
                     .context(here!())?;
             }
             ItemEnum::Trait(trt) => {
                 path.push(ComponentType::Trait, item);
+                self.record_catalog_item(&path, item, "trait");
                 self.visit_trait(&path, trt).context(here!())?;
             }
             ItemEnum::TypeAlias(alias) => {
                 path.push(ComponentType::TypeAlias, item);
+                self.record_catalog_item(&path, item, "type_alias");
                 self.visit_type(&path, &ErrorLocation::TypeAlias, &alias.type_)
                     .context(here!())?;
                 self.visit_generics(&path, &alias.generics)
@@ -459,10 +534,12 @@ impl Visitor {
             ),
             ItemEnum::Union(unn) => {
                 path.push(ComponentType::Union, item);
+                self.record_catalog_item(&path, item, "union");
                 self.visit_union(&path, unn).context(here!())?;
             }
             ItemEnum::Variant(variant) => {
                 path.push(ComponentType::EnumVariant, item);
+                self.record_catalog_item(&path, item, "enum_variant");
                 self.visit_variant(&path, variant).context(here!())?;
             }
             ItemEnum::ExternCrate { .. }
@@ -859,7 +936,8 @@ impl Visitor {
         type_id: Option<&Id>,
     ) {
         let enclosing = path.enclosing_local_struct_with_id();
-        match self.config.allows_type(&self.root_crate_name, &type_name) {
+        let allow_res = self.config.allows_type(&self.root_crate_name, &type_name);
+        match &allow_res {
             Ok(AllowedTypeMatch::RootMatch) => {
                 // The type is local to the crate being checked. If we're
                 // inside a struct field of a local struct AND the referenced
@@ -904,9 +982,11 @@ impl Visitor {
                         in_what_type,
                         path.last_span(),
                     ));
-                    self.exposure_graph
-                        .borrow_mut()
-                        .push_direct_exposure(*enc_id, enc_path, type_name);
+                    self.exposure_graph.borrow_mut().push_direct_exposure(
+                        *enc_id,
+                        enc_path,
+                        type_name.clone(),
+                    );
                 }
             }
             Err(AllowedTypeError::DuplicateMatches(duplicated_approve)) => {
@@ -914,12 +994,24 @@ impl Visitor {
                     self.remove_unused_approval_pattern(approved);
                 }
                 self.add_error(ValidationError::duplicate_approved(
-                    type_name,
+                    type_name.clone(),
                     what,
                     path.to_string(),
                     path.last_span(),
-                    duplicated_approve,
+                    duplicated_approve.to_vec(),
                 ))
+            }
+        }
+        if self.catalog.borrow().is_enabled() {
+            if let Some((_, owner_id, _)) = path.enclosing_catalog_owner_with_id() {
+                record_catalog_external_from_allow_result(
+                    &mut *self.catalog.borrow_mut(),
+                    path,
+                    what,
+                    &type_name,
+                    &owner_id,
+                    &allow_res,
+                );
             }
         }
     }

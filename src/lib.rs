@@ -6,6 +6,7 @@
 pub(crate) const NEW_ISSUE_URL: &str =
     "https://github.com/RuslanProgrammer/cargo-check-external-types-detail/issues/new";
 
+pub mod catalog;
 pub mod cargo;
 pub mod config;
 pub mod error;
