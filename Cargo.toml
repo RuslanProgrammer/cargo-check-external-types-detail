@@ -1,9 +1,15 @@
 [package]
 name = "cargo-check-external-types-detail"
 version = "0.0.1"
+authors = [
+    "AWS Rust SDK Team <aws-sdk-rust@amazon.com>",
+    "John DiSanti <jdisanti@amazon.com>",
+    "Ruslan Kasheparov <ruslankasheparov@gmail.com>",
+]
 description = "Static analysis tool to detect external types exposed in a library's public API."
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/RuslanProgrammer/cargo-check-external-types-detail"
 
 [dependencies]
 anyhow = "1"
