@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-//! This crate is used to test the cargo-check-external-types by exercising the all possible
+//! This crate is used to test the cargo-check-external-types-detail by exercising the all possible
 //! exposure of external types in a public API.
 
 pub mod test_assoc_type;
@@ -54,7 +54,7 @@ pub fn external_in_fn_output_generic() -> Option<SomeStruct> {
     unimplemented!()
 }
 
-// Try to trick cargo-check-external-types here by putting something in a private module and re-exporting it
+// Try to trick cargo-check-external-types-detail here by putting something in a private module and re-exporting it
 mod private_module {
     use external_lib::SomeStruct;
 

@@ -29,3 +29,15 @@ impl external_lib::SimpleGenericTrait<external_lib::SomeStruct> for ImplsGeneric
         0
     }
 }
+
+pub struct StructContainingPlainStruct {
+    pub inner: PlainStructWithExternalType,
+}
+
+pub struct StructContainingTupleStruct {
+    pub inner: TupleStructWithExternalType,
+}
+
+pub struct DoublyNestedStruct {
+    pub middle: StructContainingPlainStruct,
+}

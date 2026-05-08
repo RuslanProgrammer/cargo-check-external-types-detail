@@ -10,18 +10,156 @@ use crate::{bug_panic, here};
 use anyhow::{anyhow, Context, Result};
 use rustdoc_types::{
     Crate, FunctionSignature, GenericArgs, GenericBound, GenericParamDef, GenericParamDefKind,
-    Generics, Id, Item, ItemEnum, ItemSummary, Path as RustDocPath, Struct, StructKind, Term,
+    Generics, Id, Item, ItemEnum, ItemSummary, Path as RustDocPath, Span, Struct, StructKind, Term,
     Trait, Type, Union, Variant, VariantKind, Visibility, WherePredicate,
 };
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use tracing::{debug, instrument, warn};
 use wildmatch::WildMatch;
+
+/// Tracks the data needed to emit transitive "Local struct exposes" errors.
+///
+/// When struct `A` has a public field whose type (possibly nested in generics)
+/// is another local struct `B`, and `B` itself transitively exposes some
+/// external type `X`, then `A` also exposes `X` from a public-API standpoint.
+/// Detecting this requires building a small graph during the visit and
+/// computing reachability after the visit completes.
+#[derive(Default)]
+struct ExposureGraph {
+    /// Full path string of each local struct we've seen, keyed by struct `Id`.
+    struct_paths: HashMap<Id, String>,
+    /// External types that each struct exposes directly through one of its
+    /// own fields (already emitted inline as `LocalStructExposesExternalType`).
+    direct: HashMap<Id, Vec<DirectExposure>>,
+    /// References from one local struct's field to another local struct.
+    local_refs: HashMap<Id, Vec<LocalStructRef>>,
+}
+
+#[derive(Clone, Debug)]
+struct DirectExposure {
+    external_type: String,
+}
+
+#[derive(Clone, Debug)]
+struct LocalStructRef {
+    /// Id of the referenced local struct.
+    target: Id,
+    /// `ErrorLocation` of the field that introduced the reference (e.g.
+    /// `StructField` or `GenericArg`).
+    original_what: ErrorLocation,
+    /// Full path of the field (e.g. `crate::A::b_field`).
+    in_what_type: String,
+    /// Span of the field, used as the location of any error emitted for this
+    /// transitive exposure.
+    span: Option<Span>,
+}
+
+struct TransitiveEmission {
+    chain: Vec<String>,
+    external_type: String,
+    what: ErrorLocation,
+    in_what_type: String,
+    span: Option<Span>,
+}
+
+impl ExposureGraph {
+    fn note_struct_path(&mut self, id: Id, path: impl Into<String>) {
+        self.struct_paths.entry(id).or_insert_with(|| path.into());
+    }
+
+    fn push_local_struct_ref(
+        &mut self,
+        from_id: Id,
+        enc_path: &str,
+        target: Id,
+        what: ErrorLocation,
+        in_what_type: String,
+        span: Option<Span>,
+    ) {
+        self.note_struct_path(from_id, enc_path);
+        self.local_refs
+            .entry(from_id)
+            .or_default()
+            .push(LocalStructRef {
+                target,
+                original_what: what,
+                in_what_type,
+                span,
+            });
+    }
+
+    fn push_direct_exposure(&mut self, from_id: Id, enc_path: &str, external_type: String) {
+        self.note_struct_path(from_id, enc_path);
+        self.direct
+            .entry(from_id)
+            .or_default()
+            .push(DirectExposure { external_type });
+    }
+
+    fn shortest_paths_from(&self, start: Id) -> HashMap<String, Vec<Id>> {
+        let mut found: HashMap<String, Vec<Id>> = HashMap::new();
+        let mut visited: HashSet<Id> = HashSet::new();
+        let mut queue: VecDeque<Vec<Id>> = VecDeque::new();
+        queue.push_back(vec![start]);
+        visited.insert(start);
+        while let Some(path) = queue.pop_front() {
+            let node = *path.last().expect("non-empty path");
+            if let Some(directs) = self.direct.get(&node) {
+                for d in directs {
+                    found
+                        .entry(d.external_type.clone())
+                        .or_insert_with(|| path.clone());
+                }
+            }
+            if let Some(refs) = self.local_refs.get(&node) {
+                for r in refs {
+                    if visited.insert(r.target) {
+                        let mut new_path = path.clone();
+                        new_path.push(r.target);
+                        queue.push_back(new_path);
+                    }
+                }
+            }
+        }
+        found
+    }
+
+    fn collect_transitive_emissions(&self) -> Vec<TransitiveEmission> {
+        let mut emissions = Vec::new();
+        for (entry_id, refs) in &self.local_refs {
+            let entry_path = match self.struct_paths.get(entry_id) {
+                Some(p) => p.clone(),
+                None => continue,
+            };
+            for r in refs {
+                let paths = self.shortest_paths_from(r.target);
+                for (ext_type, sub_path) in paths {
+                    let mut chain: Vec<String> = Vec::with_capacity(sub_path.len() + 1);
+                    chain.push(entry_path.clone());
+                    for id in &sub_path {
+                        if let Some(p) = self.struct_paths.get(id) {
+                            chain.push(p.clone());
+                        }
+                    }
+                    emissions.push(TransitiveEmission {
+                        chain,
+                        external_type: ext_type,
+                        what: r.original_what.clone(),
+                        in_what_type: r.in_what_type.clone(),
+                        span: r.span.clone(),
+                    });
+                }
+            }
+        }
+        emissions
+    }
+}
 
 macro_rules! unstable_rust_feature {
     ($name:expr, $documentation_uri:expr) => {
         panic!(
-            "unstable Rust feature '{}' (see {}) is not supported by cargo-check-external-types",
+            "unstable Rust feature '{}' (see {}) is not supported by cargo-check-external-types-detail",
             $name, $documentation_uri
         )
     };
@@ -65,6 +203,10 @@ pub struct Visitor {
     /// Any remaining patterns at the end of processing are treated as unused
     /// and added to the validation errors.
     unused_approve: RefCell<HashSet<String>>,
+
+    /// Graph used for transitive "Local struct exposes" analysis. Populated
+    /// while visiting struct fields and consumed at the end of `visit_all`.
+    exposure_graph: RefCell<ExposureGraph>,
 }
 
 impl Visitor {
@@ -84,6 +226,7 @@ impl Visitor {
             paths: package.paths,
             errors: RefCell::new(ValidationErrors::new()),
             unused_approve,
+            exposure_graph: RefCell::new(ExposureGraph::default()),
         })
     }
 
@@ -109,12 +252,40 @@ impl Visitor {
             self.visit_item(&root_path, item, VisibilityCheck::Default)?;
         }
 
+        // Now that the per-struct exposure graph is fully populated, walk it
+        // to surface transitive cases: when struct A references struct B in
+        // one of its fields and B itself exposes external types, A also
+        // exposes those types from a public-API standpoint.
+        self.emit_transitive_local_struct_exposures();
+
         self.unused_approve
             .take()
             .into_iter()
             .for_each(|pattern| self.add_error(ValidationError::unused_approval_pattern(pattern)));
 
         Ok(self.errors.take())
+    }
+
+    /// Walks the [`ExposureGraph`] and emits a `LocalStructExposesExternalType`
+    /// error for every transitive (struct, external_type) pair reachable
+    /// through chains of local-struct field references.
+    ///
+    /// Direct exposures are already emitted inline in
+    /// [`Self::check_allow_type`]; this pass only adds the *indirect* cases.
+    /// The chain attached to each emission is the shortest path from the
+    /// public-API entry struct to the struct that directly exposes the
+    /// external type, and is used to render the chain-aware error headline.
+    fn emit_transitive_local_struct_exposures(&self) {
+        let emissions = self.exposure_graph.borrow().collect_transitive_emissions();
+        for e in emissions {
+            self.add_error(ValidationError::local_struct_exposes_external_type(
+                e.chain,
+                e.external_type,
+                &e.what,
+                e.in_what_type,
+                e.span.as_ref(),
+            ));
+        }
     }
 
     /// Returns true if the given item is public. In some cases, this must be determined
@@ -216,7 +387,12 @@ impl Visitor {
                         // not referenced in `paths` then it's assumed to be an
                         // external hidden module.
                         if let Ok(type_name) = self.type_name(target_id) {
-                            self.check_allow_type(&path, &ErrorLocation::ReExport, type_name);
+                            self.check_allow_type(
+                                &path,
+                                &ErrorLocation::ReExport,
+                                type_name,
+                                Some(target_id),
+                            );
                         } else {
                             let first_hidden_module_in_path =
                                 infer_first_hidden_module_in_import_source(
@@ -435,7 +611,7 @@ impl Visitor {
             Type::Pat { .. } => {
                 panic!(
                     "Pattern types are unstable and rustc internal rust-lang#120131. \
-                      They are unsuported by cargo-check-external-types."
+                      They are unsuported by cargo-check-external-types-detail."
                 )
             }
             Type::FunctionPointer(fp) => {
@@ -664,7 +840,7 @@ impl Visitor {
 
     fn check_external(&self, path: &Path, what: &ErrorLocation, id: &Id) -> Result<()> {
         if let Ok(type_name) = self.type_name(id) {
-            self.check_allow_type(path, what, type_name);
+            self.check_allow_type(path, what, type_name, Some(id));
         } else if !self.in_root_crate(id) {
             self.add_error(ValidationError::hidden_item(
                 what,
@@ -675,20 +851,63 @@ impl Visitor {
         Ok(())
     }
 
-    fn check_allow_type(&self, path: &Path, what: &ErrorLocation, type_name: String) {
+    fn check_allow_type(
+        &self,
+        path: &Path,
+        what: &ErrorLocation,
+        type_name: String,
+        type_id: Option<&Id>,
+    ) {
+        let enclosing = path.enclosing_local_struct_with_id();
         match self.config.allows_type(&self.root_crate_name, &type_name) {
-            Ok(AllowedTypeMatch::RootMatch) | Ok(AllowedTypeMatch::StandardLibrary(_)) => {}
+            Ok(AllowedTypeMatch::RootMatch) => {
+                // The type is local to the crate being checked. If we're
+                // inside a struct field of a local struct AND the referenced
+                // type is itself a struct, record the reference so that the
+                // post-visit pass can transitively flag the enclosing struct
+                // when the target struct exposes external types.
+                if let (Some(target_id), Some((enc_path, enc_id))) = (type_id, &enclosing) {
+                    if let Ok(target_item) = self.item(target_id) {
+                        if matches!(target_item.inner, ItemEnum::Struct(_))
+                            && target_item.crate_id == self.root_crate_id
+                        {
+                            self.exposure_graph.borrow_mut().push_local_struct_ref(
+                                *enc_id,
+                                enc_path,
+                                *target_id,
+                                what.clone(),
+                                path.to_string(),
+                                path.last_span().cloned(),
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(AllowedTypeMatch::StandardLibrary(_)) => {}
             Ok(AllowedTypeMatch::WildcardMatch(pattern)) => {
                 self.remove_unused_approval_pattern(pattern)
             }
             Err(AllowedTypeError::StandardLibraryNotAllowed(_))
             | Err(AllowedTypeError::NoMatchFound) => {
+                let in_what_type = path.to_string();
                 self.add_error(ValidationError::unapproved_external_type_ref(
-                    type_name,
+                    type_name.clone(),
                     what,
-                    path.to_string(),
+                    in_what_type.clone(),
                     path.last_span(),
-                ))
+                ));
+                if let Some((enc_path, enc_id)) = &enclosing {
+                    self.add_error(ValidationError::local_struct_exposes_external_type(
+                        vec![enc_path.clone()],
+                        type_name.clone(),
+                        what,
+                        in_what_type,
+                        path.last_span(),
+                    ));
+                    self.exposure_graph
+                        .borrow_mut()
+                        .push_direct_exposure(*enc_id, enc_path, type_name);
+                }
             }
             Err(AllowedTypeError::DuplicateMatches(duplicated_approve)) => {
                 for approved in duplicated_approve.iter() {

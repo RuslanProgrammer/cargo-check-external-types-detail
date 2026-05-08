@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-//! This crate is used to test cargo-check-external-types against a crate that
+//! This crate is used to test cargo-check-external-types-detail against a crate that
 //! defines its configuration via metadata in its `Cargo.toml`. It only offers
 //! a subset of possible violations, see `test-crate` for a more complete example.
 

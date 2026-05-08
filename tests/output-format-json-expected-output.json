@@ -1,0 +1,1159 @@
+{
+  "diagnostics": [
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_in_fn_input",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          37,
+          1
+        ],
+        "end": [
+          37,
+          74
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "argument named `_two` of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_in_fn_input",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          37,
+          1
+        ],
+        "end": [
+          37,
+          74
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_in_fn_input",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          37,
+          1
+        ],
+        "end": [
+          37,
+          74
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "argument named `_one` of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_in_fn_output",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          42,
+          1
+        ],
+        "end": [
+          44,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "return value of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_opaque_type_in_output",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          46,
+          1
+        ],
+        "end": [
+          48,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "return value of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::external_in_fn_output_generic",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          53,
+          1
+        ],
+        "end": [
+          55,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::something::something",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          61,
+          5
+        ],
+        "end": [
+          61,
+          43
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "argument named `_one` of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::field",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          66,
+          5
+        ],
+        "end": [
+          66,
+          26
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "chain": [
+        "test_crate::StructWithExternalFields"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::field",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          66,
+          5
+        ],
+        "end": [
+          66,
+          26
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Local struct `test_crate::StructWithExternalFields` exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::optional_field",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          67,
+          5
+        ],
+        "end": [
+          67,
+          43
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "chain": [
+        "test_crate::StructWithExternalFields"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::optional_field",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          67,
+          5
+        ],
+        "end": [
+          67,
+          43
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Local struct `test_crate::StructWithExternalFields` exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::new",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          71,
+          5
+        ],
+        "end": [
+          73,
+          6
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeOtherStruct` referenced in public API",
+      "type_name": "external_lib::SomeOtherStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::StructWithExternalFields::new",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          71,
+          5
+        ],
+        "end": [
+          73,
+          6
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::TraitReferencingExternals::something",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          77,
+          5
+        ],
+        "end": [
+          77,
+          55
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "argument named `a` of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::TraitReferencingExternals::optional_something",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          78,
+          5
+        ],
+        "end": [
+          78,
+          72
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::TraitReferencingExternals::otherthing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          79,
+          5
+        ],
+        "end": [
+          79,
+          40
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "return value of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::TraitReferencingExternals::optional_otherthing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          80,
+          5
+        ],
+        "end": [
+          80,
+          57
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          83,
+          1
+        ],
+        "end": [
+          97,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic default binding of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals::TupleEnum::0",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          88,
+          15
+        ],
+        "end": [
+          88,
+          25
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals::TupleEnum::1",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          88,
+          27
+        ],
+        "end": [
+          88,
+          47
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "dyn trait of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals::StructEnum::some_struct",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          90,
+          9
+        ],
+        "end": [
+          90,
+          32
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals::StructEnum::simple_trait",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          91,
+          9
+        ],
+        "end": [
+          91,
+          43
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "dyn trait of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::EnumWithExternals::another_thing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          103,
+          5
+        ],
+        "end": [
+          105,
+          6
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SOME_STRUCT",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          108,
+          1
+        ],
+        "end": [
+          108,
+          49
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "static value"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SOME_CONST",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          109,
+          1
+        ],
+        "end": [
+          109,
+          47
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "constant"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::some_pub_mod::OPTIONAL_STRUCT",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          114,
+          5
+        ],
+        "end": [
+          114,
+          59
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::some_pub_mod::OPTIONAL_CONST",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          115,
+          5
+        ],
+        "end": [
+          115,
+          57
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::ExternalReferencingTypeAlias",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          119,
+          1
+        ],
+        "end": [
+          119,
+          52
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "type alias of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::OptionalExternalReferencingTypeAlias",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          120,
+          1
+        ],
+        "end": [
+          120,
+          68
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::DynExternalReferencingTypeAlias",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          121,
+          1
+        ],
+        "end": [
+          121,
+          65
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "dyn trait of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::ExternalReferencingRawPtr",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          122,
+          1
+        ],
+        "end": [
+          122,
+          56
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "type alias of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::fn_with_external_trait_bounds",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          124,
+          1
+        ],
+        "end": [
+          131,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::AssociatedGenericTrait` referenced in public API",
+      "type_name": "external_lib::AssociatedGenericTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::fn_with_external_trait_bounds",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          124,
+          1
+        ],
+        "end": [
+          131,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeOtherStruct` referenced in public API",
+      "type_name": "external_lib::SomeOtherStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::fn_with_external_trait_bounds",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          124,
+          1
+        ],
+        "end": [
+          131,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithExternalDefaultTypes::Thing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          134,
+          5
+        ],
+        "end": [
+          134,
+          29
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithExternalDefaultTypes::OtherThing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          135,
+          5
+        ],
+        "end": [
+          139,
+          7
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::AssociatedGenericTrait` referenced in public API",
+      "type_name": "external_lib::AssociatedGenericTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithExternalDefaultTypes::OtherThing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          135,
+          5
+        ],
+        "end": [
+          139,
+          7
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeOtherStruct` referenced in public API",
+      "type_name": "external_lib::SomeOtherStruct",
+      "what": "generic default binding of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithExternalDefaultTypes::OtherThing",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          135,
+          5
+        ],
+        "end": [
+          139,
+          7
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic default binding of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithGenericAssociatedType::MyGAT",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          145,
+          5
+        ],
+        "end": [
+          147,
+          24
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::SomeTraitWithGenericAssociatedType::some_fn",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          149,
+          5
+        ],
+        "end": [
+          149,
+          62
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::AssocConstStruct::OTHER_CONST",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          157,
+          5
+        ],
+        "end": [
+          157,
+          61
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleNewType` referenced in public API",
+      "type_name": "external_lib::SimpleNewType",
+      "what": "struct field of"
+    },
+    {
+      "in_what_type": "test_crate::hidden_arg",
+      "kind": "hidden_item",
+      "level": "warning",
+      "location": {
+        "begin": [
+          160,
+          1
+        ],
+        "end": [
+          162,
+          2
+        ],
+        "filename": "test-crate/src/lib.rs"
+      },
+      "message": "argument named `arg0` of test_crate::hidden_arg references a hidden item. Items marked `#[doc(hidden)]` cannot be checked for external types",
+      "what": "argument named `arg0` of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_assoc_type::PublicStructImplsTraitWithExtAssocType::Error",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          12,
+          5
+        ],
+        "end": [
+          12,
+          29
+        ],
+        "filename": "test-crate/src/test_assoc_type.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "associated type"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_assoc_type::PublicStructImplsPublicTraitWithAssocType::Something",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          55,
+          5
+        ],
+        "end": [
+          55,
+          45
+        ],
+        "filename": "test-crate/src/test_assoc_type.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::TupleStructWithExternalType::0",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          8,
+          40
+        ],
+        "end": [
+          8,
+          68
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "chain": [
+        "test_crate::test_structs::TupleStructWithExternalType"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::TupleStructWithExternalType::0",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          8,
+          40
+        ],
+        "end": [
+          8,
+          68
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Local struct `test_crate::test_structs::TupleStructWithExternalType` exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::PlainStructWithExternalType::external",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          14,
+          5
+        ],
+        "end": [
+          14,
+          43
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "chain": [
+        "test_crate::test_structs::PlainStructWithExternalType"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::PlainStructWithExternalType::external",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          14,
+          5
+        ],
+        "end": [
+          14,
+          43
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Local struct `test_crate::test_structs::PlainStructWithExternalType` exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::ImplsGenericTrait",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          27,
+          1
+        ],
+        "end": [
+          31,
+          2
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleGenericTrait` referenced in public API",
+      "type_name": "external_lib::SimpleGenericTrait",
+      "what": "implemented trait of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::ImplsGenericTrait",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          27,
+          1
+        ],
+        "end": [
+          31,
+          2
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Unapproved external type `external_lib::SomeStruct` referenced in public API",
+      "type_name": "external_lib::SomeStruct",
+      "what": "generic arg of"
+    },
+    {
+      "chain": [
+        "test_crate::test_structs::StructContainingPlainStruct",
+        "test_crate::test_structs::PlainStructWithExternalType"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::StructContainingPlainStruct::inner",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          34,
+          5
+        ],
+        "end": [
+          34,
+          43
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Local struct `test_crate::test_structs::StructContainingPlainStruct` contains struct `test_crate::test_structs::PlainStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "chain": [
+        "test_crate::test_structs::StructContainingTupleStruct",
+        "test_crate::test_structs::TupleStructWithExternalType"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::StructContainingTupleStruct::inner",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          38,
+          5
+        ],
+        "end": [
+          38,
+          43
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Local struct `test_crate::test_structs::StructContainingTupleStruct` contains struct `test_crate::test_structs::TupleStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "chain": [
+        "test_crate::test_structs::DoublyNestedStruct",
+        "test_crate::test_structs::StructContainingPlainStruct",
+        "test_crate::test_structs::PlainStructWithExternalType"
+      ],
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_structs::DoublyNestedStruct::middle",
+      "kind": "local_struct_exposes_external_type",
+      "level": "error",
+      "location": {
+        "begin": [
+          42,
+          5
+        ],
+        "end": [
+          42,
+          44
+        ],
+        "filename": "test-crate/src/test_structs.rs"
+      },
+      "message": "Local struct `test_crate::test_structs::DoublyNestedStruct` contains struct `test_crate::test_structs::StructContainingPlainStruct` that contains struct `test_crate::test_structs::PlainStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`",
+      "type_name": "external_lib::SomeStruct",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_union::SimpleUnion::repr_c",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          10,
+          5
+        ],
+        "end": [
+          10,
+          26
+        ],
+        "filename": "test-crate/src/test_union.rs"
+      },
+      "message": "Unapproved external type `external_lib::ReprCType` referenced in public API",
+      "type_name": "external_lib::ReprCType",
+      "what": "struct field of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_union::SimpleUnion::repr_c",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          15,
+          5
+        ],
+        "end": [
+          17,
+          6
+        ],
+        "filename": "test-crate/src/test_union.rs"
+      },
+      "message": "Unapproved external type `external_lib::ReprCType` referenced in public API",
+      "type_name": "external_lib::ReprCType",
+      "what": "return value of"
+    },
+    {
+      "external_crate": "external_lib",
+      "in_what_type": "test_crate::test_union::GenericUnion",
+      "kind": "unapproved_external_type_ref",
+      "level": "error",
+      "location": {
+        "begin": [
+          21,
+          1
+        ],
+        "end": [
+          24,
+          2
+        ],
+        "filename": "test-crate/src/test_union.rs"
+      },
+      "message": "Unapproved external type `external_lib::SimpleTrait` referenced in public API",
+      "type_name": "external_lib::SimpleTrait",
+      "what": "trait bound of"
+    },
+    {
+      "kind": "fields_stripped",
+      "level": "warning",
+      "location": null,
+      "message": "Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types",
+      "type_name": "test_crate::test_fields_stripped::SomeStructWithStrippedFields"
+    }
+  ],
+  "summary": {
+    "diagnostics_count": 57,
+    "errors_count": 55,
+    "warnings_count": 2
+  }
+}

@@ -8,7 +8,7 @@
 // manually debug.
 #![no_std]
 
-//! This crate exports a bunch of types for testing cargo-check-external-types against `test-crate`
+//! This crate exports a bunch of types for testing cargo-check-external-types-detail against `test-crate`
 
 pub struct SomeStruct;
 pub struct SomeOtherStruct;

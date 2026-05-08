@@ -4,7 +4,7 @@
  */
 
 pub(crate) const NEW_ISSUE_URL: &str =
-    "https://github.com/awslabs/cargo-check-external-types/issues/new";
+    "https://github.com/RuslanProgrammer/cargo-check-external-types-detail/issues/new";
 
 pub mod cargo;
 pub mod config;

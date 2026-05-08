@@ -7,6 +7,7 @@ use crate::bug;
 use anyhow::{Context, Result};
 use pest::Position;
 use rustdoc_types::Span;
+use serde_json::{json, Value as JsonValue};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -75,6 +76,52 @@ impl fmt::Display for ErrorLocation {
     }
 }
 
+/// First path segment of a fully qualified type path (the external crate name).
+fn external_crate_of_type_name(type_name: &str) -> Option<&str> {
+    type_name.split("::").next()
+}
+
+fn escape_markdown_table_cell(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('|', "\\|")
+        .replace(['\n', '\r'], " ")
+}
+
+fn json_span_object(span: &Span) -> JsonValue {
+    json!({
+        "filename": span.filename.to_string_lossy(),
+        "begin": [span.begin.0, span.begin.1],
+        "end": [span.end.0, span.end.1],
+    })
+}
+
+fn json_location_object(loc: Option<&Span>) -> JsonValue {
+    loc.map(json_span_object).unwrap_or(JsonValue::Null)
+}
+
+fn fmt_local_struct_chain_headline(
+    chain: &[String],
+    type_name: &str,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    if chain.is_empty() {
+        return Ok(());
+    }
+    write!(f, "Local struct `{}`", chain[0])?;
+    for (i, link) in chain.iter().skip(1).enumerate() {
+        if i == 0 {
+            write!(f, " contains struct `{link}`")?;
+        } else {
+            write!(f, " that contains struct `{link}`")?;
+        }
+    }
+    if chain.len() == 1 {
+        write!(f, " exposes unapproved external type `{type_name}`")
+    } else {
+        write!(f, " that exposes unapproved external type `{type_name}`")
+    }
+}
+
 #[derive(Default)]
 pub struct ValidationErrors {
     errors: BTreeSet<ValidationError>,
@@ -112,12 +159,40 @@ impl ValidationErrors {
     pub fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
+
+    /// Renders the entire diagnostic set as a single JSON object suitable for
+    /// `--output-format json`. The object has stable summary fields plus a
+    /// `diagnostics` array.
+    ///
+    /// Note: [`ValidationError::markdown_table_row`] only surfaces external-type
+    /// diagnostics, while JSON includes every diagnostic (warnings, unused
+    /// patterns, etc.).
+    pub fn to_json_value(&self) -> JsonValue {
+        let diagnostics: Vec<JsonValue> = self.iter().map(ValidationError::to_json_value).collect();
+        json!({
+            "summary": {
+                "errors_count": self.error_count(),
+                "warnings_count": self.warning_count(),
+                "diagnostics_count": diagnostics.len(),
+            },
+            "diagnostics": diagnostics,
+        })
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum ErrorLevel {
     Error,
     Warning,
+}
+
+impl ErrorLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+        }
+    }
 }
 
 /// Error type for validation errors that get displayed to the user on the CLI.
@@ -157,6 +232,63 @@ pub enum ValidationError {
         duplicate: Vec<String>,
         sort_key: String,
     },
+    LocalStructExposesExternalType {
+        /// Chain of local-struct paths from the public-API entry point to the
+        /// struct that directly exposes the external type. Length 1 means the
+        /// entry struct itself directly exposes the type. Length > 1 means the
+        /// exposure is transitive through intermediate local structs.
+        chain: Vec<String>,
+        type_name: String,
+        /// Where the exposure appears in the public API (e.g. full path to a struct field).
+        what: ErrorLocation,
+        in_what_type: String,
+        location: Option<Span>,
+        sort_key: String,
+    },
+}
+
+/// Labels the two external-exposure rows in [`ValidationError::markdown_table_row`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MarkdownExposureKind {
+    UnapprovedExternal,
+    LocalStructChain,
+}
+
+impl MarkdownExposureKind {
+    fn as_table_value(self) -> &'static str {
+        match self {
+            Self::UnapprovedExternal => "unapproved_external",
+            Self::LocalStructChain => "local_struct_chain",
+        }
+    }
+}
+
+/// One row for `--output-format markdown-table` (cells are already escaped for `|`).
+#[derive(Debug, Clone)]
+pub struct MarkdownTableRow {
+    pub external_crate: String,
+    pub external_type: String,
+    pub exposure_kind: MarkdownExposureKind,
+    /// Full API path of the exposure (markdown column "API path").
+    pub path_in_api: String,
+    pub local_struct_chain: String,
+    pub role: String,
+    pub source: String,
+}
+
+impl MarkdownTableRow {
+    pub fn format_line(&self) -> String {
+        format!(
+            "| {} | {} | {} | {} | {} | {} | {} |",
+            self.external_crate,
+            self.external_type,
+            self.exposure_kind.as_table_value(),
+            self.path_in_api,
+            self.local_struct_chain,
+            self.role,
+            self.source,
+        )
+    }
 }
 
 impl ValidationError {
@@ -186,7 +318,8 @@ impl ValidationError {
 
     pub fn level(&self) -> ErrorLevel {
         match self {
-            Self::UnapprovedExternalTypeRef { .. } => ErrorLevel::Error,
+            Self::UnapprovedExternalTypeRef { .. }
+            | Self::LocalStructExposesExternalType { .. } => ErrorLevel::Error,
             Self::HiddenModule { .. }
             | Self::HiddenItem { .. }
             | Self::FieldsStripped { .. }
@@ -272,13 +405,48 @@ impl ValidationError {
         }
     }
 
+    pub fn local_struct_exposes_external_type(
+        chain: Vec<String>,
+        type_name: impl Into<String>,
+        original_what: &ErrorLocation,
+        original_in_what_type: impl Into<String>,
+        location: Option<&Span>,
+    ) -> Self {
+        let type_name = type_name.into();
+        let in_what_type = original_in_what_type.into();
+        // Sort directly AFTER the corresponding `UnapprovedExternalTypeRef` for the
+        // same field by using its sort key as a prefix and appending `:exposes`.
+        // Because `"X" < "X:exposes"` lexicographically, this yields the alternating
+        // ordering shown in the expected output.
+        let sort_key = format!(
+            "{}:{type_name}:{original_what}:{}:exposes",
+            location_sort_key(location),
+            in_what_type
+        );
+        if location.is_none() {
+            bug!("An error is missing a span and will be printed without context, file name, and line number.");
+        }
+        if chain.is_empty() {
+            bug!("local_struct_exposes_external_type called with empty chain.");
+        }
+        Self::LocalStructExposesExternalType {
+            chain,
+            type_name,
+            what: original_what.clone(),
+            in_what_type,
+            location: location.cloned(),
+            sort_key,
+        }
+    }
+
     pub fn type_name(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { type_name, .. }
             | Self::HiddenModule { type_name, .. }
             | Self::FieldsStripped { type_name }
             | Self::UnusedApprovalPattern { type_name }
-            | Self::DuplicateApproved { type_name, .. } => type_name,
+            | Self::DuplicateApproved { type_name, .. }
+            | Self::LocalStructExposesExternalType { type_name, .. } => type_name,
             Self::HiddenItem { .. } => "N/A",
         }
     }
@@ -288,7 +456,8 @@ impl ValidationError {
             Self::UnapprovedExternalTypeRef { location, .. }
             | Self::HiddenModule { location, .. }
             | Self::HiddenItem { location, .. }
-            | Self::DuplicateApproved { location, .. } => location.as_ref(),
+            | Self::DuplicateApproved { location, .. }
+            | Self::LocalStructExposesExternalType { location, .. } => location.as_ref(),
             Self::FieldsStripped { .. } | Self::UnusedApprovalPattern { .. } => None,
         }
     }
@@ -296,7 +465,8 @@ impl ValidationError {
     fn sort_key(&self) -> &str {
         match self {
             Self::UnapprovedExternalTypeRef { sort_key, .. }
-            | Self::DuplicateApproved { sort_key, .. } => sort_key.as_ref(),
+            | Self::DuplicateApproved { sort_key, .. }
+            | Self::LocalStructExposesExternalType { sort_key, .. } => sort_key.as_ref(),
             Self::FieldsStripped { type_name }
             | Self::HiddenModule { type_name, .. }
             | Self::UnusedApprovalPattern { type_name } => type_name.as_ref(),
@@ -357,6 +527,11 @@ impl ValidationError {
                         .fold(String::new(), |acc, f| acc + &f)
                 )
             }
+            Self::LocalStructExposesExternalType {
+                chain,
+                type_name,
+                ..
+            } => fmt_local_struct_chain_headline(chain, type_name, f),
         }
     }
 
@@ -375,6 +550,173 @@ impl ValidationError {
             | Self::DuplicateApproved {
                 what, in_what_type, ..
             } => format!("in {what} `{in_what_type}`").into(),
+            Self::LocalStructExposesExternalType { chain, .. } => {
+                format!("in local struct `{}`", chain[0]).into()
+            }
+        }
+    }
+
+    /// Stable machine-readable identifier for each diagnostic variant. Used
+    /// in the `markdown-table` and `json` output formats so consumers can
+    /// classify diagnostics without parsing the human-readable headline.
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            Self::UnapprovedExternalTypeRef { .. } => "unapproved_external_type_ref",
+            Self::FieldsStripped { .. } => "fields_stripped",
+            Self::HiddenModule { .. } => "hidden_module",
+            Self::HiddenItem { .. } => "hidden_item",
+            Self::UnusedApprovalPattern { .. } => "unused_approval_pattern",
+            Self::DuplicateApproved { .. } => "duplicate_approved",
+            Self::LocalStructExposesExternalType { .. } => "local_struct_exposes_external_type",
+        }
+    }
+
+    /// Renders this diagnostic as a structured JSON object. Used by
+    /// `--output-format json` so downstream tools can consume diagnostics
+    /// programmatically.
+    pub fn to_json_value(&self) -> JsonValue {
+        let headline = format!("{self}");
+        let level = self.level().as_str();
+        let kind = self.kind_str();
+
+        let mut base = json!({
+            "level": level,
+            "kind": kind,
+            "message": headline,
+            "location": json_location_object(self.location()),
+        });
+        let obj = base.as_object_mut().expect("object");
+
+        match self {
+            Self::UnapprovedExternalTypeRef {
+                type_name,
+                what,
+                in_what_type,
+                ..
+            } => {
+                obj.insert("type_name".into(), json!(type_name));
+                obj.insert(
+                    "external_crate".into(),
+                    json!(external_crate_of_type_name(type_name)),
+                );
+                obj.insert("what".into(), json!(what.to_string()));
+                obj.insert("in_what_type".into(), json!(in_what_type));
+            }
+            Self::LocalStructExposesExternalType {
+                chain,
+                type_name,
+                what,
+                in_what_type,
+                ..
+            } => {
+                obj.insert("type_name".into(), json!(type_name));
+                obj.insert(
+                    "external_crate".into(),
+                    json!(external_crate_of_type_name(type_name)),
+                );
+                obj.insert("chain".into(), json!(chain));
+                obj.insert("what".into(), json!(what.to_string()));
+                obj.insert("in_what_type".into(), json!(in_what_type));
+            }
+            Self::HiddenModule {
+                type_name,
+                what,
+                in_what_type,
+                hidden_module,
+                ..
+            } => {
+                obj.insert("type_name".into(), json!(type_name));
+                obj.insert("what".into(), json!(what.to_string()));
+                obj.insert("in_what_type".into(), json!(in_what_type));
+                obj.insert("hidden_module".into(), json!(hidden_module));
+            }
+            Self::HiddenItem {
+                what, in_what_type, ..
+            } => {
+                obj.insert("what".into(), json!(what.to_string()));
+                obj.insert("in_what_type".into(), json!(in_what_type));
+            }
+            Self::FieldsStripped { type_name } => {
+                obj.insert("type_name".into(), json!(type_name));
+            }
+            Self::UnusedApprovalPattern { type_name } => {
+                obj.insert("type_name".into(), json!(type_name));
+            }
+            Self::DuplicateApproved {
+                type_name,
+                what,
+                in_what_type,
+                duplicate,
+                ..
+            } => {
+                obj.insert("type_name".into(), json!(type_name));
+                obj.insert("what".into(), json!(what.to_string()));
+                obj.insert("in_what_type".into(), json!(in_what_type));
+                obj.insert("duplicate_patterns".into(), json!(duplicate));
+            }
+        }
+
+        base
+    }
+
+    /// One row for `--output-format markdown-table`. Returns `None` for
+    /// diagnostics that are not about an unapproved external type surface
+    /// (warnings, duplicate-allow patterns, etc.).
+    pub fn markdown_table_row(&self) -> Option<MarkdownTableRow> {
+        let source_cell = |loc: &Span| {
+            format!(
+                "{}:{}:{}",
+                loc.filename.to_string_lossy(),
+                loc.begin.0,
+                loc.begin.1
+            )
+        };
+        match self {
+            Self::UnapprovedExternalTypeRef {
+                type_name,
+                what,
+                in_what_type,
+                location,
+                ..
+            } => {
+                let loc = location.as_ref()?;
+                let crate_name = external_crate_of_type_name(type_name)
+                    .unwrap_or(type_name.as_str())
+                    .to_string();
+                Some(MarkdownTableRow {
+                    external_crate: escape_markdown_table_cell(&crate_name),
+                    external_type: escape_markdown_table_cell(type_name),
+                    exposure_kind: MarkdownExposureKind::UnapprovedExternal,
+                    path_in_api: escape_markdown_table_cell(in_what_type),
+                    local_struct_chain: String::new(),
+                    role: escape_markdown_table_cell(&what.to_string()),
+                    source: source_cell(loc),
+                })
+            }
+            Self::LocalStructExposesExternalType {
+                chain,
+                type_name,
+                what,
+                in_what_type,
+                location,
+                ..
+            } => {
+                let loc = location.as_ref()?;
+                let crate_name = external_crate_of_type_name(type_name)
+                    .unwrap_or(type_name.as_str())
+                    .to_string();
+                let chain_str = chain.join(" → ");
+                Some(MarkdownTableRow {
+                    external_crate: escape_markdown_table_cell(&crate_name),
+                    external_type: escape_markdown_table_cell(type_name),
+                    exposure_kind: MarkdownExposureKind::LocalStructChain,
+                    path_in_api: escape_markdown_table_cell(in_what_type),
+                    local_struct_chain: escape_markdown_table_cell(&chain_str),
+                    role: escape_markdown_table_cell(&what.to_string()),
+                    source: source_cell(loc),
+                })
+            }
+            _ => None,
         }
     }
 }

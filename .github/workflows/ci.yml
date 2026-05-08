@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          path: cargo-check-external-types
+          path: cargo-check-external-types-detail
       - uses: actions/checkout@v3
         with:
           repository: awslabs/aws-sdk-rust
@@ -108,24 +108,24 @@ jobs:
       - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
       - name: Run
         run: |
-          cargo install --locked --path cargo-check-external-types
+          cargo install --locked --path cargo-check-external-types-detail
           cd aws-sdk-rust/sdk
-          cargo check-external-types --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
-          cargo check-external-types --all-features --config aws-runtime/external-types.toml --manifest-path aws-runtime/Cargo.toml
-          cargo check-external-types --all-features --config aws-sigv4/external-types.toml --manifest-path aws-sigv4/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-async/external-types.toml --manifest-path aws-smithy-async/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-checksums/external-types.toml --manifest-path aws-smithy-checksums/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-eventstream/external-types.toml --manifest-path aws-smithy-eventstream/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-http-client/external-types.toml --manifest-path aws-smithy-http-client/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-runtime-api/external-types.toml --manifest-path aws-smithy-runtime-api/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-runtime/external-types.toml --manifest-path aws-smithy-runtime/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-types-convert/external-types.toml --manifest-path aws-smithy-types-convert/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-types/external-types.toml --manifest-path aws-smithy-types/Cargo.toml
-          cargo check-external-types --all-features --config aws-smithy-xml/external-types.toml --manifest-path aws-smithy-xml/Cargo.toml
-          cargo check-external-types --all-features --config aws-types/external-types.toml --manifest-path aws-types/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-config/external-types.toml --manifest-path aws-config/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-runtime/external-types.toml --manifest-path aws-runtime/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-sigv4/external-types.toml --manifest-path aws-sigv4/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-async/external-types.toml --manifest-path aws-smithy-async/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-checksums/external-types.toml --manifest-path aws-smithy-checksums/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-eventstream/external-types.toml --manifest-path aws-smithy-eventstream/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-http/external-types.toml --manifest-path aws-smithy-http/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-http-client/external-types.toml --manifest-path aws-smithy-http-client/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-json/external-types.toml --manifest-path aws-smithy-json/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-query/external-types.toml --manifest-path aws-smithy-query/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-runtime-api/external-types.toml --manifest-path aws-smithy-runtime-api/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-runtime/external-types.toml --manifest-path aws-smithy-runtime/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-types-convert/external-types.toml --manifest-path aws-smithy-types-convert/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-types/external-types.toml --manifest-path aws-smithy-types/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-smithy-xml/external-types.toml --manifest-path aws-smithy-xml/Cargo.toml
+          cargo check-external-types-detail --all-features --config aws-types/external-types.toml --manifest-path aws-types/Cargo.toml
         env:
           # Intentionally don't set flags
           RUSTFLAGS:
@@ -137,7 +137,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          path: cargo-check-external-types
+          path: cargo-check-external-types-detail
       - uses: actions/checkout@v3
         with:
           repository: tokio-rs/tokio
@@ -151,8 +151,8 @@ jobs:
       - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641
       - name: Run
         run: |
-          cargo install --locked --path cargo-check-external-types
-          cargo check-external-types --features full --manifest-path tokio/tokio/Cargo.toml
+          cargo install --locked --path cargo-check-external-types-detail
+          cargo check-external-types-detail --features full --manifest-path tokio/tokio/Cargo.toml
         env:
           # Intentionally don't set flags
           RUSTDOCFLAGS:

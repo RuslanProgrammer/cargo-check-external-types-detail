@@ -68,6 +68,14 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |
    = in struct field of `test_crate::StructWithExternalFields::field`
 
+error: Local struct `test_crate::StructWithExternalFields` exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/lib.rs:66:5
+   |
+66 |     pub field: SomeStruct,
+   |     ^-------------------^
+   |
+   = in local struct `test_crate::StructWithExternalFields`
+
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/lib.rs:67:5
    |
@@ -75,6 +83,14 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |     ^------------------------------------^
    |
    = in generic arg of `test_crate::StructWithExternalFields::optional_field`
+
+error: Local struct `test_crate::StructWithExternalFields` exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/lib.rs:67:5
+   |
+67 |     pub optional_field: Option<SomeStruct>,
+   |     ^------------------------------------^
+   |
+   = in local struct `test_crate::StructWithExternalFields`
 
 error: Unapproved external type `external_lib::SomeOtherStruct` referenced in public API
   --> test-crate/src/lib.rs:71:5
@@ -372,6 +388,14 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
   |
   = in struct field of `test_crate::test_structs::TupleStructWithExternalType::0`
 
+error: Local struct `test_crate::test_structs::TupleStructWithExternalType` exposes unapproved external type `external_lib::SomeStruct`
+ --> test-crate/src/test_structs.rs:8:40
+  |
+8 | pub struct TupleStructWithExternalType(pub external_lib::SomeStruct);
+  |                                        ^--------------------------^
+  |
+  = in local struct `test_crate::test_structs::TupleStructWithExternalType`
+
 error: Unapproved external type `external_lib::SomeStruct` referenced in public API
   --> test-crate/src/test_structs.rs:14:5
    |
@@ -379,6 +403,14 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    |     ^------------------------------------^
    |
    = in struct field of `test_crate::test_structs::PlainStructWithExternalType::external`
+
+error: Local struct `test_crate::test_structs::PlainStructWithExternalType` exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/test_structs.rs:14:5
+   |
+14 |     pub external: external_lib::SomeStruct,
+   |     ^------------------------------------^
+   |
+   = in local struct `test_crate::test_structs::PlainStructWithExternalType`
 
 error: Unapproved external type `external_lib::SimpleGenericTrait` referenced in public API
   --> test-crate/src/test_structs.rs:27:1
@@ -399,6 +431,30 @@ error: Unapproved external type `external_lib::SomeStruct` referenced in public 
    | ^
    |
    = in generic arg of `test_crate::test_structs::ImplsGenericTrait`
+
+error: Local struct `test_crate::test_structs::StructContainingPlainStruct` contains struct `test_crate::test_structs::PlainStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/test_structs.rs:34:5
+   |
+34 |     pub inner: PlainStructWithExternalType,
+   |     ^------------------------------------^
+   |
+   = in local struct `test_crate::test_structs::StructContainingPlainStruct`
+
+error: Local struct `test_crate::test_structs::StructContainingTupleStruct` contains struct `test_crate::test_structs::TupleStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/test_structs.rs:38:5
+   |
+38 |     pub inner: TupleStructWithExternalType,
+   |     ^------------------------------------^
+   |
+   = in local struct `test_crate::test_structs::StructContainingTupleStruct`
+
+error: Local struct `test_crate::test_structs::DoublyNestedStruct` contains struct `test_crate::test_structs::StructContainingPlainStruct` that contains struct `test_crate::test_structs::PlainStructWithExternalType` that exposes unapproved external type `external_lib::SomeStruct`
+  --> test-crate/src/test_structs.rs:42:5
+   |
+42 |     pub middle: StructContainingPlainStruct,
+   |     ^-------------------------------------^
+   |
+   = in local struct `test_crate::test_structs::DoublyNestedStruct`
 
 error: Unapproved external type `external_lib::ReprCType` referenced in public API
   --> test-crate/src/test_union.rs:10:5
@@ -429,4 +485,4 @@ error: Unapproved external type `external_lib::SimpleTrait` referenced in public
    = in trait bound of `test_crate::test_union::GenericUnion`
 
 warning: Fields on `test_crate::test_fields_stripped::SomeStructWithStrippedFields` marked `#[doc(hidden)]` cannot be checked for external types
-48 errors, 2 warnings emitted
+55 errors, 2 warnings emitted

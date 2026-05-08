@@ -1,7 +1,6 @@
-cargo-check-external-types
-==========================
+# cargo-check-external-types-detail
 
-`cargo-check-external-types` is a static analysis tool for Rust library authors
+`cargo-check-external-types-detail` is a static analysis tool for Rust library authors
 to set and verify which types from other libraries are allowed to be exposed in
 their public API. This is useful for ensuring that a breaking change to a
 dependency doesn't force a breaking change in the library that's using it.
@@ -13,12 +12,12 @@ The tool has two output formats to cover different use-cases:
   useful for continuous integration.
 - `markdown-table`: Output the places types are exposed as a Markdown table.
   This is intended as a discovery tool for established projects.
+- `json`: Output the results as a JSON object. This is intended as a programmatic output format.
 
 The tool has an optional configuration file where types can by explicitly
 allowed.
 
-Example Output
---------------
+## Example Output
 
 The test suite has a Rust library that [relies on some external
 types](test-workspace/test-crate/src/lib.rs). When the tool is run against this
@@ -33,25 +32,27 @@ output](tests/allow-some-types-expected-output.md).
 When the output format is set to `markdown-table`, then a [table of external
 types](tests/output-format-markdown-table-expected-output.md) is output.
 
-How to Use
-----------
+When the output format is set to `json`, then the results are output as a JSON object.
+
+## How to Use
 
 _Important:_ This tool requires a nightly build of Rust to be installed since it
 relies on the [rustdoc JSON
 output](https://github.com/rust-lang/rust/issues/76578), which hasn't been
 stabilized yet. The `main` branch was last tested against `nightly-2025-10-18`.
 For info on what nightly version a specific release depends on, see the
-[releases](https://github.com/awslabs/cargo-check-external-types/releases) page.
+releases page.
 
 To install, run the following from this README path:
 
 ```bash
-cargo install --locked cargo-check-external-types
+cargo install --locked cargo-check-external-types-detail
 ```
 
 Then, in your library crate path, run:
+
 ```bash
-cargo +nightly check-external-types
+cargo +nightly check-external-types-detail
 ```
 
 This will produce errors if any external types are used in a public API at all.
@@ -76,7 +77,7 @@ Save that file somewhere in your project (in this example, we choose the name
 `external-types.toml`), and then run the command with:
 
 ```bash
-cargo +nightly check-external-types --config external-types.toml
+cargo +nightly check-external-types-detail --config external-types.toml
 ```
 
 If both a `Cargo.toml` package metadata section and a `--config` flag are
@@ -100,7 +101,7 @@ version is. All in all, you must update:
 
 - The `rustdoc-types` dependency in `Cargo.toml` to the new version.
 - The `rust-toolchain` file to point to the new nightly version.
-- The `README.md` file, specifically the *"It was last tested against `nightly-XXXX-XX-XX`."* of the ["How to Use"](#how-to-use) section.
+- The `README.md` file, specifically the _"It was last tested against `nightly-XXXX-XX-XX`."_ of the ["How to Use"](#how-to-use) section.
 - The `rust_version` in the [CI workflow file](.github/workflows/ci.yml).
 
 Then, PR your changes.

@@ -3,56 +3,43 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use anyhow::{anyhow, bail};
-use anyhow::{Context, Result};
-use cargo_check_external_types::cargo::CargoRustDocJson;
-use cargo_check_external_types::config::Config;
-use cargo_check_external_types::error::{ErrorPrinter, ValidationError};
-use cargo_check_external_types::here;
-use cargo_check_external_types::visitor::Visitor;
+use anyhow::{anyhow, bail, Context, Result};
+use cargo_check_external_types_detail::cargo::CargoRustDocJson;
+use cargo_check_external_types_detail::config::Config;
+use cargo_check_external_types_detail::error::{ErrorPrinter, ValidationErrors};
+use cargo_check_external_types_detail::here;
+use cargo_check_external_types_detail::visitor::Visitor;
 use cargo_metadata::{CargoOpt, Metadata, Package, TargetKind};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
 use std::process;
-use std::str::FromStr;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
 enum OutputFormat {
+    #[default]
     Errors,
     MarkdownTable,
+    Json,
 }
 
 impl fmt::Display for OutputFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Errors => "errors",
-            Self::MarkdownTable => "markdown-table",
-        })
-    }
-}
-
-impl FromStr for OutputFormat {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "errors" => Ok(OutputFormat::Errors),
-            "markdown-table" => Ok(OutputFormat::MarkdownTable),
-            _ => Err(anyhow!(
-                "invalid output format: {}. Expected `errors` or `markdown-table`.",
-                s
-            )),
+        match self {
+            Self::Errors => write!(f, "errors"),
+            Self::MarkdownTable => write!(f, "markdown-table"),
+            Self::Json => write!(f, "json"),
         }
     }
 }
 
 #[derive(clap::Args, Debug, Eq, PartialEq)]
-struct CheckExternalTypesArgs {
+struct CheckExternalTypesDetailArgs {
     /// Enables all crate features
     #[arg(long, conflicts_with = "no_default_features")]
     all_features: bool,
@@ -83,7 +70,7 @@ struct CheckExternalTypesArgs {
 #[derive(Parser, Debug, Eq, PartialEq)]
 #[command(author, version, about, bin_name = "cargo")]
 enum Args {
-    CheckExternalTypes(CheckExternalTypesArgs),
+    CheckExternalTypesDetail(CheckExternalTypesDetailArgs),
 }
 
 enum Error {
@@ -109,7 +96,7 @@ fn main() {
 }
 
 fn run_main() -> Result<(), Error> {
-    let Args::CheckExternalTypes(args) = Args::parse();
+    let Args::CheckExternalTypesDetail(args) = Args::parse();
     if args.verbose {
         let filter_layer = EnvFilter::try_from_default_env()
             .or_else(|_| EnvFilter::try_new("debug"))
@@ -187,31 +174,31 @@ fn run_main() -> Result<(), Error> {
                 return Err(Error::ValidationErrors);
             }
         }
-        OutputFormat::MarkdownTable => {
-            println!("| Crate | Type | Used In |");
-            println!("| ---   | ---  | ---     |");
-            let mut rows = Vec::new();
-            for error in errors.iter() {
-                if let ValidationError::UnapprovedExternalTypeRef { .. } = error {
-                    let type_name = error.type_name();
-                    let crate_name = &type_name[0..type_name.find("::").unwrap_or(type_name.len())];
-                    let location = error.location().unwrap();
-                    rows.push(format!(
-                        "| {} | {} | {}:{}:{} |",
-                        crate_name,
-                        type_name,
-                        location.filename.to_string_lossy(),
-                        location.begin.0,
-                        location.begin.1
-                    ));
-                }
-            }
-            rows.sort();
-            rows.into_iter().for_each(|row| println!("{row}"));
+        OutputFormat::MarkdownTable => print_markdown_table(&errors),
+        OutputFormat::Json => {
+            let value = errors.to_json_value();
+            let rendered = serde_json::to_string_pretty(&value)
+                .context("failed to serialize diagnostics as JSON")?;
+            println!("{rendered}");
         }
     }
 
     Ok(())
+}
+
+fn print_markdown_table(errors: &ValidationErrors) {
+    println!(
+        "| External crate | External type | Exposure kind | API path | Local struct chain | Role | Source |"
+    );
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
+    let mut rows: Vec<String> = errors
+        .iter()
+        .filter_map(|e| e.markdown_table_row().map(|r| r.format_line()))
+        .collect();
+    rows.sort();
+    for row in rows {
+        println!("{row}");
+    }
 }
 
 fn resolve_config(metadata: &Metadata) -> Result<Config> {
@@ -271,7 +258,7 @@ fn resolve_root_package(metadata: &Metadata) -> Result<&Package> {
         .ok_or_else(|| {
             let workspace_members = metadata.workspace_members.as_slice().iter().map(|id| id.to_string()).collect::<Vec<_>>().join("\n");
             if !workspace_members.is_empty() {
-                anyhow!("it appears you're trying to run `cargo-check-external-types` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
+                anyhow!("it appears you're trying to run `cargo-check-external-types-detail` on a workspace Cargo.toml; Instead, run it on one of the workspace member Cargo.tomls directly:\n{workspace_members}")
             } else {
                 anyhow!("No root package found")
             }
@@ -297,7 +284,7 @@ mod arg_parse_tests {
     #[test]
     fn defaults() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: None,
@@ -307,14 +294,14 @@ mod arg_parse_tests {
                 verbose: false,
                 output_format: OutputFormat::Errors,
             }),
-            Args::try_parse_from(["cargo", "check-external-types"]).unwrap()
+            Args::try_parse_from(["cargo", "check-external-types-detail"]).unwrap()
         );
     }
 
     #[test]
     fn all_features() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: true,
                 no_default_features: false,
                 features: None,
@@ -324,14 +311,15 @@ mod arg_parse_tests {
                 verbose: false,
                 output_format: OutputFormat::Errors,
             }),
-            Args::try_parse_from(["cargo", "check-external-types", "--all-features"]).unwrap()
+            Args::try_parse_from(["cargo", "check-external-types-detail", "--all-features"])
+                .unwrap()
         );
     }
 
     #[test]
     fn no_default_features() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: true,
                 features: None,
@@ -341,15 +329,19 @@ mod arg_parse_tests {
                 verbose: false,
                 output_format: OutputFormat::Errors,
             }),
-            Args::try_parse_from(["cargo", "check-external-types", "--no-default-features"])
-                .unwrap()
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types-detail",
+                "--no-default-features"
+            ])
+            .unwrap()
         );
     }
 
     #[test]
     fn feature_list() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: Some(vec!["foo".into(), "bar".into()]),
@@ -359,15 +351,20 @@ mod arg_parse_tests {
                 verbose: false,
                 output_format: OutputFormat::Errors,
             }),
-            Args::try_parse_from(["cargo", "check-external-types", "--features", "foo,bar"])
-                .unwrap()
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types-detail",
+                "--features",
+                "foo,bar"
+            ])
+            .unwrap()
         );
     }
 
     #[test]
     fn manifest_path() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: None,
@@ -379,7 +376,7 @@ mod arg_parse_tests {
             }),
             Args::try_parse_from([
                 "cargo",
-                "check-external-types",
+                "check-external-types-detail",
                 "--manifest-path",
                 "test-path"
             ])
@@ -390,7 +387,7 @@ mod arg_parse_tests {
     #[test]
     fn target() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: None,
@@ -402,7 +399,7 @@ mod arg_parse_tests {
             }),
             Args::try_parse_from([
                 "cargo",
-                "check-external-types",
+                "check-external-types-detail",
                 "--target",
                 "x86_64-unknown-linux-gnu"
             ])
@@ -413,7 +410,7 @@ mod arg_parse_tests {
     #[test]
     fn verbose() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: None,
@@ -423,14 +420,14 @@ mod arg_parse_tests {
                 verbose: true,
                 output_format: OutputFormat::Errors,
             }),
-            Args::try_parse_from(["cargo", "check-external-types", "--verbose"]).unwrap()
+            Args::try_parse_from(["cargo", "check-external-types-detail", "--verbose"]).unwrap()
         );
     }
 
     #[test]
     fn output_format_markdown_table() {
         assert_eq!(
-            Args::CheckExternalTypes(CheckExternalTypesArgs {
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
                 all_features: false,
                 no_default_features: false,
                 features: None,
@@ -442,7 +439,7 @@ mod arg_parse_tests {
             }),
             Args::try_parse_from([
                 "cargo",
-                "check-external-types",
+                "check-external-types-detail",
                 "--output-format",
                 "markdown-table"
             ])
@@ -451,11 +448,45 @@ mod arg_parse_tests {
     }
 
     #[test]
+    fn output_format_json() {
+        assert_eq!(
+            Args::CheckExternalTypesDetail(CheckExternalTypesDetailArgs {
+                all_features: false,
+                no_default_features: false,
+                features: None,
+                manifest_path: None,
+                target: None,
+                config: None,
+                verbose: false,
+                output_format: OutputFormat::Json,
+            }),
+            Args::try_parse_from([
+                "cargo",
+                "check-external-types-detail",
+                "--output-format",
+                "json"
+            ])
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn output_format_invalid() {
+        assert!(Args::try_parse_from([
+            "cargo",
+            "check-external-types-detail",
+            "--output-format",
+            "yaml"
+        ])
+        .is_err());
+    }
+
+    #[test]
     fn conflict_all_features_no_default_features() {
         // Check `--all-features` and `--no-default-features` conflict
         assert!(Args::try_parse_from([
             "cargo",
-            "check-external-types",
+            "check-external-types-detail",
             "--all-features",
             "--no-default-features"
         ])

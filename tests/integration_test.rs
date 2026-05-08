@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-use cargo_check_external_types::cargo::handle_failure;
+use cargo_check_external_types_detail::cargo::handle_failure;
 use pretty_assertions::assert_str_eq;
 use std::fs;
 use std::path::Path;
@@ -19,18 +19,18 @@ pub fn output_text(output: &Output) -> (String, String) {
 }
 
 fn run_with_args(in_path: impl AsRef<Path>, args: &[&str]) -> String {
-    let mut cmd = get_test_bin("cargo-check-external-types");
+    let mut cmd = get_test_bin("cargo-check-external-types-detail");
     cmd.current_dir(in_path.as_ref());
-    cmd.arg("check-external-types");
+    cmd.arg("check-external-types-detail");
     for &arg in args {
         cmd.arg(arg);
     }
     let output = cmd
         .output()
-        .expect("failed to start cargo-check-external-types");
+        .expect("failed to start cargo-check-external-types-detail");
     match output.status.code() {
         Some(1) => { /* expected */ }
-        _ => handle_failure("cargo-check-external-types", &output).unwrap(),
+        _ => handle_failure("cargo-check-external-types-detail", &output).unwrap(),
     }
     let (stdout, _) = output_text(&output);
     stdout
@@ -93,6 +93,33 @@ fn with_output_format_markdown_table() {
         &["--output-format", "markdown-table"],
     );
     assert_str_eq!(expected_output, actual_output);
+}
+
+#[test]
+fn with_output_format_json() {
+    let expected_output =
+        fs::read_to_string("tests/output-format-json-expected-output.json").unwrap();
+    let actual_output = run_with_args("test-workspace/test-crate", &["--output-format", "json"]);
+    assert_str_eq!(expected_output, actual_output);
+
+    // Sanity-check: the actual output is parseable JSON with the expected
+    // top-level shape so consumers can rely on it.
+    let parsed: serde_json::Value =
+        serde_json::from_str(&actual_output).expect("--output-format json must produce valid JSON");
+    let summary = parsed.get("summary").expect("summary field present");
+    assert!(summary
+        .get("errors_count")
+        .and_then(|v| v.as_u64())
+        .is_some());
+    assert!(summary
+        .get("warnings_count")
+        .and_then(|v| v.as_u64())
+        .is_some());
+    let diagnostics = parsed
+        .get("diagnostics")
+        .and_then(|v| v.as_array())
+        .expect("diagnostics array present");
+    assert!(!diagnostics.is_empty(), "expected at least one diagnostic");
 }
 
 #[test]
